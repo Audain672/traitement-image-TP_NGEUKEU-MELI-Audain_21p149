@@ -1,4 +1,4 @@
-""
+"""
 Module utilitaire pour le chargement et la sauvegarde d'images.
 """
 

@@ -1,4 +1,4 @@
-""
+"""
 Module contenant des fonctions utilitaires pour le traitement d'images.
 """
 

@@ -1,4 +1,4 @@
-""
+""""
 Module contenant les opérations de transformation d'images.
 """
 
@@ -20,8 +20,8 @@ def adjust_gamma(image, gamma=1.0):
     inv_gamma = 1.0 / gamma if gamma != 0 else 0
     
     # Créer une table de correspondance
-    table = np.array([((i / 255.0) ** inv_gamma) * 255 
-                     for i in np.arange(0, 256)]).astype("uint8")
+    table = np.array([((i / 255.0) ** inv_gamma) * 255
+    for i in np.arange(0, 256)]).astype("uint8")
     
     # Appliquer la correction gamma
     return cv2.LUT(image, table)

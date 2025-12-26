@@ -1,5 +1,5 @@
-""
-Module contenant les opérations de base de traitement d'image.
+"""
+Module contenant les opérations de base de traitement d'images.
 """
 
 import cv2
