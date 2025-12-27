@@ -1,0 +1,48 @@
+services:
+  image-processor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: image-processor
+    image: image-processor:latest
+    
+    # Configuration pour l'affichage GUI (X11)
+    environment:
+      - DISPLAY=${DISPLAY:-:0}
+      - QT_X11_NO_MITSHM=1
+      - XAUTHORITY=/tmp/.docker.xauth
+    
+    # Volumes pour partager le display X11 et les fichiers
+    volumes:
+      # Socket X11 (Linux et macOS avec XQuartz)
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      # Autorité X11 (optionnel, pour certains systèmes)
+      - ${XAUTHORITY:-$HOME/.Xauthority}:/tmp/.docker.xauth:ro
+      # Dossier pour partager les images
+      - ./images:/app/images:rw
+      # Répertoire home de la machine hôte (accès en lecture/écriture)
+      - ${HOME}:/host/home:rw
+      # Répertoire courant du projet (accès en lecture/écriture)
+      - .:/host/project:rw
+    
+    # Permissions réseau (nécessaire pour X11 sur Linux)
+    # Sur macOS/Windows, on peut utiliser bridge network
+    network_mode: ${NETWORK_MODE:-host}
+    
+    # Permissions pour accéder au display
+    privileged: false
+    
+    # Commande par défaut
+    command: python start_app.py
+    
+    # Redémarrer en cas d'erreur
+    restart: unless-stopped
+    
+    # Limites de ressources (optionnel)
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 512M
+

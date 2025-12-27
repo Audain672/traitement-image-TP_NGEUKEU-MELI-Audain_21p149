@@ -1,4 +1,4 @@
-""
+""""
 Module contenant les opérations morphologiques pour le traitement d'images.
 """
 

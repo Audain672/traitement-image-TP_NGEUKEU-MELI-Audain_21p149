@@ -1,4 +1,4 @@
-""
+""""
 Module contenant les opérations de segmentation d'images.
 """
 
