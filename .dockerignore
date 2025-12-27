@@ -1,0 +1,50 @@
+# Fichiers Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Environnements virtuels
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.docx
+*.pdf
+Guide_pour_tester_le_projet.*
+
+# Images de test (optionnel)
+images/
+*.jpg
+*.png
+*.jpeg
+*.bmp
+*.tiff
+*.gif
+
+# Logs
+*.log
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+

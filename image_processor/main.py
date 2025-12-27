@@ -18,12 +18,12 @@ def main():
         root = tk.Tk()
         root.title("Image Processor - Traitement d'images")
         
+        # Configuration de la fenêtre
         root.minsize(1000, 700)
+        root.configure(bg='#F5F8FA')  # Fond gris-bleu très doux
         
+        # Créer l'application
         app = MainWindow(root)
-        
-        style = ttk.Style()
-        style.configure('TNotebook.Tab', padding=[10, 5])
         
         root.mainloop()
         

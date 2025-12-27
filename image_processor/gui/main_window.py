@@ -9,6 +9,8 @@ import cv2
 import numpy as np
 import os
 import sys
+import logging
+import traceback
 
 class MainWindow:
     """Classe principale de l'interface utilisateur."""
@@ -22,18 +24,176 @@ class MainWindow:
         # Variable de taille de noyau utilisée par plusieurs opérations
         self.kernel_size = tk.IntVar(value=5)
         
+        # Configuration du logging
+        self.logger = logging.getLogger('ImageProcessor')
+        self.logger.setLevel(logging.INFO)
+        if not self.logger.handlers:
+            handler = logging.StreamHandler()
+            formatter = logging.Formatter(
+                '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                datefmt='%Y-%m-%d %H:%M:%S'
+            )
+            handler.setFormatter(formatter)
+            self.logger.addHandler(handler)
+        
+        # Configuration du thème bleu
+        self._setup_blue_theme()
+        
         # Configuration de la grille principale
         self.master.columnconfigure(0, weight=1)
         self.master.rowconfigure(1, weight=1)
+        
+        # Configuration de la fenêtre avec fond doux
+        self.master.configure(bg='#F5F8FA')
         
         # Création des widgets
         self._create_widgets()
         
+    def _setup_blue_theme(self):
+        """Configure le thème bleu doux pour l'interface."""
+        style = ttk.Style()
+        
+        # Couleurs du thème bleu doux et pastel
+        self.colors = {
+            'primary': '#6BA3D8',      # Bleu doux principal (moins saturé)
+            'primary_dark': '#4A90C2',  # Bleu doux foncé
+            'primary_light': '#D6E8F5', # Bleu très clair pastel
+            'background': '#F5F8FA',   # Fond gris-bleu très clair (presque blanc)
+            'surface': '#FFFFFF',      # Surface blanche
+            'accent': '#E74C3C',       # Rouge doux pour le bouton de fermeture
+            'text': '#2C3E50',         # Texte sombre doux
+            'text_light': '#7F8C8D',   # Texte clair
+            'border': '#BDC3C7',       # Bordure grise douce
+        }
+        
+        # Configuration du style
+        style.theme_use('clam')
+        
+        # Configuration des boutons - style plus doux
+        style.configure('TButton',
+                       background=self.colors['primary'],
+                       foreground='white',
+                       borderwidth=0,
+                       relief='flat',
+                       padding=10,
+                       font=('Arial', 9))
+        style.map('TButton',
+                 background=[('active', self.colors['primary_dark']),
+                           ('pressed', self.colors['primary_dark'])],
+                 relief=[('pressed', 'flat')])
+        
+        # Configuration des frames
+        style.configure('TFrame', background=self.colors['background'])
+        style.configure('TLabelframe', 
+                      background=self.colors['surface'],
+                      borderwidth=1,
+                      relief='flat',
+                      bordercolor=self.colors['border'])
+        style.configure('TLabelframe.Label',
+                       background=self.colors['surface'],
+                       foreground=self.colors['text'],
+                       font=('Arial', 9, 'bold'))
+        
+        # Configuration des onglets - style plus doux
+        style.configure('TNotebook',
+                       background=self.colors['background'],
+                       borderwidth=0)
+        style.configure('TNotebook.Tab',
+                       background=self.colors['primary_light'],
+                       foreground=self.colors['text'],
+                       padding=[12, 6],
+                       font=('Arial', 9))
+        style.map('TNotebook.Tab',
+                 background=[('selected', self.colors['primary']),
+                           ('active', '#B8D4E8')],
+                 foreground=[('selected', 'white'),
+                           ('active', self.colors['text'])])
+        
+        # Configuration de la barre de statut
+        style.configure('TLabel',
+                       background=self.colors['background'],
+                       foreground=self.colors['text'])
+        
+        # Configuration des séparateurs
+        style.configure('TSeparator',
+                       background=self.colors['border'])
+        
+        # Configuration du PanedWindow
+        style.configure('TPanedwindow',
+                       background=self.colors['background'])
+    
+    def _create_custom_title_bar(self):
+        """Crée une barre de titre personnalisée avec un bouton de fermeture rouge."""
+        title_bar = tk.Frame(self.master, bg=self.colors['primary'], height=32)
+        title_bar.grid(row=0, column=0, sticky="ew")
+        title_bar.columnconfigure(0, weight=1)
+        
+        # Titre de l'application
+        title_label = tk.Label(
+            title_bar,
+            text="Image Processor",
+            bg=self.colors['primary'],
+            fg='white',
+            font=('Arial', 10),
+            padx=15
+        )
+        title_label.grid(row=0, column=0, sticky="w")
+        
+        # Bouton de fermeture personnalisé
+        close_btn = tk.Button(
+            title_bar,
+            text="✕",
+            bg=self.colors['primary'],
+            fg='white',
+            activebackground=self.colors['accent'],
+            activeforeground='white',
+            font=('Arial', 12),
+            borderwidth=0,
+            width=3,
+            height=1,
+            cursor='hand2',
+            command=self.master.quit,
+            relief='flat'
+        )
+        close_btn.grid(row=0, column=1, sticky="e", padx=8)
+        
+        # Effet de survol pour le bouton de fermeture
+        def on_enter_close(e):
+            close_btn.config(bg=self.colors['accent'], fg='white')
+        
+        def on_leave_close(e):
+            close_btn.config(bg=self.colors['primary'], fg='white')
+        
+        close_btn.bind('<Enter>', on_enter_close)
+        close_btn.bind('<Leave>', on_leave_close)
+        
+        # Permettre le déplacement de la fenêtre en glissant la barre de titre
+        def start_move(event):
+            self.master.x = event.x
+            self.master.y = event.y
+        
+        def on_move(event):
+            deltax = event.x - self.master.x
+            deltay = event.y - self.master.y
+            x = self.master.winfo_x() + deltax
+            y = self.master.winfo_y() + deltay
+            self.master.geometry(f"+{x}+{y}")
+        
+        title_bar.bind('<Button-1>', start_move)
+        title_bar.bind('<B1-Motion>', on_move)
+        title_label.bind('<Button-1>', start_move)
+        title_label.bind('<B1-Motion>', on_move)
+        
+        return title_bar
+    
     def _create_widgets(self):
         """Crée les widgets de l'interface utilisateur."""
         # Configuration de la grille principale
         self.master.columnconfigure(0, weight=1)
-        self.master.rowconfigure(1, weight=1)
+        self.master.rowconfigure(2, weight=1)  # Changé de 1 à 2 pour la barre de titre
+        
+        # Barre de titre personnalisée
+        self._create_custom_title_bar()
         
         # Barre de menu
         self._create_menu_bar()
@@ -43,49 +203,61 @@ class MainWindow:
         
         # Panneau principal
         main_panel = ttk.PanedWindow(self.master, orient=tk.HORIZONTAL)
-        main_panel.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
+        main_panel.grid(row=2, column=0, sticky="nsew", padx=8, pady=8)
         
         # Panneau de contrôle à gauche
-        control_frame = ttk.LabelFrame(main_panel, text="Opérations", padding=10)
+        control_frame = ttk.LabelFrame(main_panel, text="Opérations", padding=15)
         main_panel.add(control_frame, weight=1)
         
         # Zone d'affichage de l'image à droite
-        self.image_frame = ttk.Frame(main_panel, padding=5)
+        self.image_frame = tk.Frame(main_panel, bg=self.colors['surface'], relief='flat')
         main_panel.add(self.image_frame, weight=3)
+        
+        # Frame interne pour le padding
+        image_inner = tk.Frame(self.image_frame, bg=self.colors['surface'])
+        image_inner.pack(fill='both', expand=True, padx=8, pady=8)
+        self.image_frame = image_inner
         
         # Configuration de la grille de l'image
         self.image_frame.columnconfigure(0, weight=1)
         self.image_frame.rowconfigure(0, weight=1)
         
+        # Frame pour le canvas avec bordure douce
+        canvas_frame = tk.Frame(self.image_frame, bg=self.colors['border'], relief='flat')
+        canvas_frame.grid(row=0, column=0, sticky="nsew", padx=1, pady=1)
+        canvas_frame.columnconfigure(0, weight=1)
+        canvas_frame.rowconfigure(0, weight=1)
+        
         # Création du canvas pour afficher l'image
         self.canvas = tk.Canvas(
             self.image_frame, 
-            bg='#f0f0f0', 
-            highlightthickness=1, 
-            highlightbackground='#999999',
+            bg='#FFFFFF', 
+            highlightthickness=1,
+            highlightbackground=self.colors['border'],
+            highlightcolor=self.colors['primary_light'],
             scrollregion=(0, 0, 0, 0)
         )
         
-        # Barres de défilement
-        x_scroll = ttk.Scrollbar(self.image_frame, orient='horizontal', command=self.canvas.xview)
-        y_scroll = ttk.Scrollbar(self.image_frame, orient='vertical', command=self.canvas.yview)
+        # Barres de défilement avec style bleu
+        x_scroll = ttk.Scrollbar(canvas_frame, orient='horizontal', command=self.canvas.xview)
+        y_scroll = ttk.Scrollbar(canvas_frame, orient='vertical', command=self.canvas.yview)
         self.canvas.configure(xscrollcommand=x_scroll.set, yscrollcommand=y_scroll.set)
         
         # Positionnement des widgets
-        self.canvas.grid(row=0, column=0, sticky="nsew")
+        self.canvas.grid(row=0, column=0, sticky="nsew", padx=1, pady=1)
         y_scroll.grid(row=0, column=1, sticky='ns')
         x_scroll.grid(row=1, column=0, sticky='ew')
         
         # Configuration de la grille pour le redimensionnement
-        self.image_frame.columnconfigure(0, weight=1)
-        self.image_frame.rowconfigure(0, weight=1)
+        canvas_frame.columnconfigure(0, weight=1)
+        canvas_frame.rowconfigure(0, weight=1)
         
         # Zone de texte temporaire pour guider l'utilisateur
         self.canvas.create_text(
             300, 200, 
             text="Ouvrez une image pour commencer...",
             font=('Arial', 12), 
-            fill='gray',
+            fill=self.colors['text_light'],
             tags=("message",)
         )
         
@@ -106,19 +278,146 @@ class MainWindow:
 
         # Barre de statut en bas de la fenêtre
         self.status_var = tk.StringVar(value="Prêt")
-        self.status_bar = ttk.Label(
-            self.master,
+        status_frame = tk.Frame(self.master, bg=self.colors['background'], height=24, relief='flat', bd=1)
+        status_frame.grid(row=3, column=0, sticky="ew")
+        status_frame.columnconfigure(0, weight=1)
+        
+        self.status_bar = tk.Label(
+            status_frame,
             textvariable=self.status_var,
-            relief=tk.SUNKEN,
+            bg=self.colors['background'],
+            fg=self.colors['text_light'],
             anchor='w',
-            padding=2
+            padx=12,
+            pady=4,
+            font=('Arial', 8)
         )
-        self.status_bar.grid(row=2, column=0, sticky="ew")
+        self.status_bar.grid(row=0, column=0, sticky="ew")
+    
+    def _set_cursor_wait(self):
+        """Définit le curseur en mode attente de manière compatible."""
+        try:
+            # Essayer différents curseurs selon la compatibilité du système
+            for cursor_name in ["watch", "wait", "arrow"]:
+                try:
+                    self.master.config(cursor=cursor_name)
+                    self.master.update()
+                    return
+                except tk.TclError:
+                    continue
+            # Si aucun ne fonctionne, utiliser le curseur par défaut
+            self.master.config(cursor="")
+        except Exception as e:
+            self.logger.warning(f"Impossible de définir le curseur d'attente: {e}")
+            self.master.config(cursor="")
+    
+    def _set_cursor_normal(self):
+        """Restaure le curseur normal."""
+        try:
+            self.master.config(cursor="")
+            self.master.update()
+        except Exception as e:
+            self.logger.warning(f"Impossible de restaurer le curseur: {e}")
+    
+    def _get_initial_directory(self):
+        """Détermine le répertoire initial pour les dialogues de fichiers (ouverture)."""
+        # Vérifier si on est dans Docker et accéder au répertoire home de la machine hôte
+        host_home_dir = "/host/home"
+        if os.path.exists(host_home_dir) and os.path.isdir(host_home_dir):
+            # Dans Docker, utiliser le répertoire home de la machine hôte
+            # Essayer d'accéder au répertoire Desktop ou Images si disponible
+            desktop_dir = os.path.join(host_home_dir, "Desktop")
+            pictures_dir = os.path.join(host_home_dir, "Pictures")
+            images_dir = os.path.join(host_home_dir, "Images")
+            
+            if os.path.exists(pictures_dir) and os.path.isdir(pictures_dir):
+                self.logger.info(f"Utilisation du répertoire Pictures de l'hôte: {pictures_dir}")
+                return pictures_dir
+            elif os.path.exists(images_dir) and os.path.isdir(images_dir):
+                self.logger.info(f"Utilisation du répertoire Images de l'hôte: {images_dir}")
+                return images_dir
+            elif os.path.exists(desktop_dir) and os.path.isdir(desktop_dir):
+                self.logger.info(f"Utilisation du répertoire Desktop de l'hôte: {desktop_dir}")
+                return desktop_dir
+            else:
+                self.logger.info(f"Utilisation du répertoire home de l'hôte: {host_home_dir}")
+                return host_home_dir
+        
+        # Vérifier si on est dans Docker avec accès au projet
+        host_project_dir = "/host/project"
+        if os.path.exists(host_project_dir) and os.path.isdir(host_project_dir):
+            project_images = os.path.join(host_project_dir, "images")
+            if os.path.exists(project_images) and os.path.isdir(project_images):
+                self.logger.info(f"Utilisation du répertoire images du projet: {project_images}")
+                return project_images
+            self.logger.info(f"Utilisation du répertoire projet: {host_project_dir}")
+            return host_project_dir
+        
+        # Vérifier si le répertoire images Docker existe
+        docker_images_dir = "/app/images"
+        if os.path.exists(docker_images_dir) and os.path.isdir(docker_images_dir):
+            self.logger.info(f"Utilisation du répertoire Docker: {docker_images_dir}")
+            return docker_images_dir
+        
+        # Vérifier si le répertoire images local existe
+        local_images_dir = os.path.join(os.getcwd(), "images")
+        if os.path.exists(local_images_dir) and os.path.isdir(local_images_dir):
+            self.logger.info(f"Utilisation du répertoire local: {local_images_dir}")
+            return local_images_dir
+        
+        # Si une image est déjà chargée, utiliser son répertoire
+        if self.image_path:
+            dirname = os.path.dirname(self.image_path)
+            if os.path.exists(dirname):
+                return dirname
+        
+        # Sinon, utiliser le répertoire home
+        home_dir = os.path.expanduser("~")
+        self.logger.info(f"Utilisation du répertoire home: {home_dir}")
+        return home_dir
+    
+    def _get_writable_directory(self):
+        """Détermine un répertoire accessible en écriture pour sauvegarder."""
+        # Priorité 1: Répertoire images du projet (toujours accessible en écriture)
+        host_project_images = "/host/project/images"
+        if os.path.exists(host_project_images) and os.access(host_project_images, os.W_OK):
+            self.logger.info(f"Utilisation du répertoire images du projet (écriture): {host_project_images}")
+            return host_project_images
+        
+        # Priorité 2: Répertoire images Docker
+        docker_images_dir = "/app/images"
+        if os.path.exists(docker_images_dir) and os.access(docker_images_dir, os.W_OK):
+            self.logger.info(f"Utilisation du répertoire Docker (écriture): {docker_images_dir}")
+            return docker_images_dir
+        
+        # Priorité 3: Répertoire projet
+        host_project_dir = "/host/project"
+        if os.path.exists(host_project_dir) and os.access(host_project_dir, os.W_OK):
+            self.logger.info(f"Utilisation du répertoire projet (écriture): {host_project_dir}")
+            return host_project_dir
+        
+        # Priorité 4: Répertoire Desktop de l'hôte (si accessible en écriture)
+        host_desktop = "/host/home/Desktop"
+        if os.path.exists(host_desktop) and os.access(host_desktop, os.W_OK):
+            self.logger.info(f"Utilisation du répertoire Desktop (écriture): {host_desktop}")
+            return host_desktop
+        
+        # Priorité 5: Répertoire home de l'hôte (si accessible en écriture)
+        host_home_dir = "/host/home"
+        if os.path.exists(host_home_dir) and os.access(host_home_dir, os.W_OK):
+            self.logger.info(f"Utilisation du répertoire home (écriture): {host_home_dir}")
+            return host_home_dir
+        
+        # Dernier recours: répertoire home local
+        home_dir = os.path.expanduser("~")
+        self.logger.info(f"Utilisation du répertoire home local (écriture): {home_dir}")
+        return home_dir
     
     def _create_toolbar(self):
         """Crée la barre d'outils de l'application."""
-        toolbar = ttk.Frame(self.master, padding=5)
-        toolbar.grid(row=1, column=0, sticky="ew", padx=5, pady=(0, 5))
+        toolbar = tk.Frame(self.master, bg=self.colors['surface'], relief='flat', bd=0)
+        toolbar.grid(row=1, column=0, sticky="ew", padx=8, pady=(5, 8))
+        toolbar.columnconfigure(9, weight=1)
         
         # Configuration de la grille de la barre d'outils
         for i in range(10):
@@ -148,33 +447,19 @@ class MainWindow:
         
         # Séparateur
         ttk.Separator(toolbar, orient=tk.VERTICAL).grid(
-            row=0, column=2, padx=5, sticky="ns"
+            row=0, column=2, padx=8, sticky="ns"
         )
         
-        # Bouton Annuler
-        undo_icon = self._load_icon("undo")
-        undo_btn = ttk.Button(
+        # Bouton Réinitialiser (centralisé)
+        reset_btn = ttk.Button(
             toolbar,
-            text="Annuler",
-            image=undo_icon,
-            compound=tk.LEFT,
-            command=self._undo_changes
+            text="Réinitialiser",
+            command=self._reset_image
         )
-        undo_btn.grid(row=0, column=3, padx=2, sticky="w")
-        
-        # Bouton Rétablir
-        redo_icon = self._load_icon("redo")
-        redo_btn = ttk.Button(
-            toolbar,
-            text="Rétablir",
-            image=redo_icon,
-            compound=tk.LEFT,
-            command=self._redo_changes
-        )
-        redo_btn.grid(row=0, column=4, padx=2, sticky="w")
+        reset_btn.grid(row=0, column=3, padx=2, sticky="w")
         
         # Espaceur
-        ttk.Label(toolbar, text="").grid(row=0, column=9, sticky="e")
+        ttk.Label(toolbar, text="", background=self.colors['surface']).grid(row=0, column=4, sticky="ew", columnspan=6)
         
         # Ajout d'un style pour les boutons de la barre d'outils
         style = ttk.Style()
@@ -183,9 +468,7 @@ class MainWindow:
         # Stocker les références aux icônes pour éviter le garbage collection
         self.toolbar_icons = {
             'open': open_icon,
-            'save': save_icon,
-            'undo': undo_icon,
-            'redo': redo_icon
+            'save': save_icon
         }
     
     def _load_icon(self, icon_name, size=(16, 16)):
@@ -210,26 +493,55 @@ class MainWindow:
         ]
         
         try:
+            self.logger.info("Ouverture de la boîte de dialogue de sélection de fichier")
+            self.status_var.set("Sélection d'un fichier...")
+            
+            initial_dir = self._get_initial_directory()
             filepath = filedialog.askopenfilename(
                 title="Ouvrir une image",
                 filetypes=filetypes,
-                initialdir=os.path.expanduser("~")
+                initialdir=initial_dir
             )
             
             if not filepath:  # L'utilisateur a annulé
+                self.logger.info("Sélection de fichier annulée par l'utilisateur")
+                self.status_var.set("Prêt")
                 return
-                
+            
+            self.logger.info(f"Fichier sélectionné: {filepath}")
+            self.status_var.set(f"Chargement de l'image: {os.path.basename(filepath)}...")
+            
+            # Vérifier que le fichier existe
+            if not os.path.exists(filepath):
+                error_msg = f"Le fichier n'existe pas: {filepath}"
+                self.logger.error(error_msg)
+                self.status_var.set("Erreur: fichier introuvable")
+                messagebox.showerror("Erreur", error_msg)
+                return
+            
+            # Vérifier que c'est un fichier (pas un répertoire)
+            if not os.path.isfile(filepath):
+                error_msg = f"Le chemin spécifié n'est pas un fichier: {filepath}"
+                self.logger.error(error_msg)
+                self.status_var.set("Erreur: chemin invalide")
+                messagebox.showerror("Erreur", error_msg)
+                return
+            
             # Afficher un message de chargement
-            self.master.config(cursor="wait")
-            self.master.update()
+            self._set_cursor_wait()
             
             # Charger l'image avec PIL qui gère mieux les formats variés
             try:
+                self.logger.info(f"Tentative de chargement avec PIL: {filepath}")
                 # Essayer d'abord avec PIL
                 self.original_image = Image.open(filepath)
+                self.logger.info(f"Image chargée avec PIL - Mode: {self.original_image.mode}, Taille: {self.original_image.size}")
+                
                 # Conserver le mode d'origine mais assurer qu'il est supporté
                 if self.original_image.mode not in ['1', 'L', 'P', 'RGB', 'RGBA']:
+                    self.logger.info(f"Conversion du mode {self.original_image.mode} vers RGB")
                     self.original_image = self.original_image.convert('RGB')
+                
                 self.current_image = self.original_image.copy()
                 self.image_path = filepath
                 
@@ -243,25 +555,52 @@ class MainWindow:
                 # Activer les contrôles qui nécessitent une image
                 self._set_ui_state(True)
                 
+                self.logger.info(f"Image chargée avec succès: {filename}")
+                self.status_var.set(f"Image chargée: {filename} ({self.original_image.size[0]}x{self.original_image.size[1]})")
+                
             except Exception as e:
+                error_details_pil = traceback.format_exc()
+                self.logger.error(f"Échec du chargement avec PIL: {str(e)}")
+                self.logger.debug(f"Détails de l'erreur PIL:\n{error_details_pil}")
+                self.status_var.set("Tentative de chargement avec OpenCV...")
+                
                 # Si PIL échoue, essayer avec OpenCV en dernier recours
                 try:
+                    self.logger.info(f"Tentative de chargement avec OpenCV: {filepath}")
                     image = cv2.imread(filepath, cv2.IMREAD_UNCHANGED)
+                    
                     if image is None:
-                        raise ValueError("Format non supporté ou fichier corrompu.")
+                        error_msg = "Impossible de charger l'image. Le fichier est peut-être corrompu ou le format n'est pas supporté."
+                        self.logger.error(error_msg)
+                        self.status_var.set("Erreur: impossible de charger l'image")
+                        messagebox.showerror(
+                            "Erreur de chargement",
+                            f"{error_msg}\n\nFichier: {os.path.basename(filepath)}\n\n"
+                            f"Erreur PIL: {str(e)}"
+                        )
+                        return
+                    
+                    self.logger.info(f"Image chargée avec OpenCV - Shape: {image.shape}, Type: {image.dtype}")
                     
                     # Convertir selon le nombre de canaux
                     if len(image.shape) == 2:  # Niveaux de gris
                         mode = 'L'
                         image_pil = Image.fromarray(image, mode)
+                        self.logger.info("Conversion en niveaux de gris (L)")
                     elif image.shape[2] == 3:  # Couleur (BGR)
                         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
                         image_pil = Image.fromarray(image, 'RGB')
+                        self.logger.info("Conversion BGR vers RGB")
                     elif image.shape[2] == 4:  # Couleur avec alpha (BGRA)
                         image = cv2.cvtColor(image, cv2.COLOR_BGRA2RGBA)
                         image_pil = Image.fromarray(image, 'RGBA')
+                        self.logger.info("Conversion BGRA vers RGBA")
                     else:
-                        raise ValueError("Format d'image non supporté.")
+                        error_msg = f"Format d'image non supporté. Nombre de canaux: {image.shape[2]}"
+                        self.logger.error(error_msg)
+                        self.status_var.set("Erreur: format non supporté")
+                        messagebox.showerror("Erreur", error_msg)
+                        return
                     
                     # Mettre à jour les images
                     self.original_image = image_pil
@@ -278,19 +617,32 @@ class MainWindow:
                     # Activer les contrôles qui nécessitent une image
                     self._set_ui_state(True)
                     
+                    self.logger.info(f"Image chargée avec succès via OpenCV: {filename}")
+                    self.status_var.set(f"Image chargée: {filename} ({image_pil.size[0]}x{image_pil.size[1]})")
+                    
                 except Exception as e2:
-                    messagebox.showerror(
-                        "Erreur", 
-                        f"Impossible de charger l'image :\n{str(e)}\n\nDétails techniques :\n{str(e2)}"
+                    error_details_cv = traceback.format_exc()
+                    error_msg = (
+                        f"Impossible de charger l'image avec les deux méthodes (PIL et OpenCV).\n\n"
+                        f"Fichier: {os.path.basename(filepath)}\n\n"
+                        f"Erreur PIL: {str(e)}\n\n"
+                        f"Erreur OpenCV: {str(e2)}"
                     )
+                    self.logger.error(f"Échec complet du chargement:\n{error_msg}")
+                    self.logger.debug(f"Détails de l'erreur OpenCV:\n{error_details_cv}")
+                    self.status_var.set("Erreur: chargement impossible")
+                    messagebox.showerror("Erreur de chargement", error_msg)
                     
         except Exception as e:
-            messagebox.showerror("Erreur", f"Erreur lors de l'ouverture du fichier : {str(e)}")
+            error_details = traceback.format_exc()
+            error_msg = f"Erreur lors de l'ouverture du fichier: {str(e)}"
+            self.logger.error(f"Erreur générale lors de l'ouverture:\n{error_details}")
+            self.status_var.set("Erreur lors de l'ouverture")
+            messagebox.showerror("Erreur", error_msg)
             
         finally:
             # Restaurer le curseur
-            self.master.config(cursor="")
-            self.master.update()
+            self._set_cursor_normal()
 
     def _reset_image(self):
         """Réinitialise l'image à son état d'origine."""
@@ -323,10 +675,15 @@ class MainWindow:
             dirname, filename = os.path.split(self.image_path)
             name, ext = os.path.splitext(filename)
             default_name = f"{name}_modifie{ext}"
-            initial_dir = dirname
+            # Utiliser le même répertoire que l'image source si accessible en écriture
+            if os.path.exists(dirname) and os.access(dirname, os.W_OK):
+                initial_dir = dirname
+            else:
+                # Si le répertoire n'est pas accessible en écriture, utiliser un répertoire accessible
+                initial_dir = self._get_writable_directory()
         else:
             default_name = "image_modifiee.png"
-            initial_dir = os.path.expanduser("~")
+            initial_dir = self._get_writable_directory()
         
         try:
             filepath = filedialog.asksaveasfilename(
@@ -338,11 +695,15 @@ class MainWindow:
             )
             
             if not filepath:  # L'utilisateur a annulé
+                self.logger.info("Enregistrement annulé par l'utilisateur")
+                self.status_var.set("Prêt")
                 return
+            
+            self.logger.info(f"Enregistrement de l'image: {filepath}")
+            self.status_var.set(f"Enregistrement en cours: {os.path.basename(filepath)}...")
                 
             # Afficher un curseur d'attente
-            self.master.config(cursor="wait")
-            self.master.update()
+            self._set_cursor_wait()
             
             # Déterminer le format à partir de l'extension du fichier
             _, ext = os.path.splitext(filepath)
@@ -412,19 +773,24 @@ class MainWindow:
             self.master.title(f"Image Processor - {filename}")
             
             # Afficher un message de confirmation
+            self.logger.info(f"Image enregistrée avec succès: {filepath}")
+            self.status_var.set(f"Image enregistrée: {os.path.basename(filepath)}")
             messagebox.showinfo("Succès", f"L'image a été enregistrée sous :\n{filepath}")
             
         except Exception as e:
-            messagebox.showerror(
-                "Erreur", 
-                f"Impossible d'enregistrer l'image :\n{str(e)}\n\n"
-                "Assurez-vous d'avoir les permissions nécessaires et que le chemin est valide."
+            error_details = traceback.format_exc()
+            error_msg = (
+                f"Impossible d'enregistrer l'image.\n\n"
+                f"Erreur: {str(e)}\n\n"
+                f"Assurez-vous d'avoir les permissions nécessaires et que le chemin est valide."
             )
+            self.logger.error(f"Erreur lors de l'enregistrement:\n{error_details}")
+            self.status_var.set("Erreur lors de l'enregistrement")
+            messagebox.showerror("Erreur", error_msg)
             
         finally:
             # Restaurer le curseur
-            self.master.config(cursor="")
-            self.master.update()
+            self._set_cursor_normal()
     
     def _update_image_display(self):
         """Met à jour l'affichage de l'image dans le canvas."""
@@ -490,8 +856,11 @@ class MainWindow:
             self.canvas.yview_moveto(0)
             
         except Exception as e:
-            print(f"Erreur lors de la mise à jour de l'affichage : {e}")
-            messagebox.showerror("Erreur", f"Impossible d'afficher l'image : {str(e)}")
+            error_details = traceback.format_exc()
+            error_msg = f"Impossible d'afficher l'image : {str(e)}"
+            self.logger.error(f"Erreur lors de la mise à jour de l'affichage:\n{error_details}")
+            self.status_var.set("Erreur d'affichage")
+            messagebox.showerror("Erreur", error_msg)
     
     def _set_ui_state(self, has_image):
         """Active ou désactive les contrôles en fonction de l'état de l'application."""
@@ -548,7 +917,7 @@ class MainWindow:
         """Crée les onglets pour les différentes opérations de traitement d'image."""
         # Création du widget Notebook pour les onglets
         self.notebook = ttk.Notebook(parent)
-        self.notebook.pack(fill='both', expand=True, padx=5, pady=5)
+        self.notebook.pack(fill='both', expand=True, padx=8, pady=8)
         
         # Création des onglets
         self._add_transform_tab()
@@ -559,11 +928,18 @@ class MainWindow:
     
     def _add_transform_tab(self):
         """Ajoute l'onglet des transformations d'images."""
-        tab = ttk.Frame(self.notebook, padding=10)
+        tab = tk.Frame(self.notebook, bg=self.colors['surface'], padx=15, pady=15)
         self.notebook.add(tab, text="Transformations")
         
         # Ajouter des contrôles pour les transformations
-        ttk.Label(tab, text="Transformations d'images", font=('Arial', 10, 'bold')).pack(pady=5)
+        title_label = tk.Label(
+            tab, 
+            text="Transformations d'images", 
+            font=('Arial', 11, 'bold'),
+            bg=self.colors['surface'],
+            fg=self.colors['primary_dark']
+        )
+        title_label.pack(pady=(0, 10))
         
         # Frame pour les boutons de transformation
         btn_frame = ttk.Frame(tab)
@@ -636,14 +1012,6 @@ class MainWindow:
             style='TButton'
         ).pack(fill='x', pady=2)
 
-        # Bouton pour revenir à l'image initiale
-        ttk.Separator(tab, orient='horizontal').pack(fill='x', pady=5)
-        ttk.Button(
-            tab,
-            text="Réinitialiser l'image",
-            command=self._reset_image,
-            style='TButton'
-        ).pack(fill='x', pady=2)
     
     def _add_filter_tab(self):
         """Ajoute l'onglet des filtres."""
@@ -741,14 +1109,6 @@ class MainWindow:
             style='TButton'
         ).pack(side='left', expand=True, padx=2)
 
-        # Bouton pour revenir à l'image initiale
-        ttk.Separator(tab, orient='horizontal').pack(fill='x', pady=5)
-        ttk.Button(
-            tab,
-            text="Réinitialiser l'image",
-            command=self._reset_image,
-            style='TButton'
-        ).pack(fill='x', pady=2)
     
     def _add_morphology_tab(self):
         """Ajoute l'onglet des opérations morphologiques."""
@@ -825,14 +1185,6 @@ class MainWindow:
         self.kernel_label = ttk.Label(param_frame, text="5x5")
         self.kernel_label.pack(side='left', padx=5)
 
-        # Bouton pour revenir à l'image initiale
-        ttk.Separator(tab, orient='horizontal').pack(fill='x', pady=5)
-        ttk.Button(
-            tab,
-            text="Réinitialiser l'image",
-            command=self._reset_image,
-            style='TButton'
-        ).pack(fill='x', pady=2)
         
     def _update_kernel_size(self):
         """Met à jour l'affichage de la taille du noyau."""
@@ -966,14 +1318,6 @@ class MainWindow:
             style='TButton'
         ).pack(fill='x', pady=2)
 
-        # Bouton pour revenir à l'image initiale
-        ttk.Separator(tab, orient='horizontal').pack(fill='x', pady=5)
-        ttk.Button(
-            tab,
-            text="Réinitialiser l'image",
-            command=self._reset_image,
-            style='TButton'
-        ).pack(fill='x', pady=2)
         
     def _add_frequency_tab(self):
         """Ajoute l'onglet pour les opérations en domaine fréquentiel (FFT)."""
@@ -1011,14 +1355,6 @@ class MainWindow:
             style='TButton'
         ).pack(fill='x', pady=2)
 
-        # Bouton pour revenir à l'image initiale
-        ttk.Separator(tab, orient='horizontal').pack(fill='x', pady=5)
-        ttk.Button(
-            tab,
-            text="Réinitialiser l'image",
-            command=self._reset_image,
-            style='TButton'
-        ).pack(fill='x', pady=2)
 
     def _update_threshold_preview(self):
         """Met à jour l'affichage de la valeur de seuil."""
@@ -2049,16 +2385,41 @@ class MainWindow:
             if k is None:
                 return
 
+            self.logger.info(f"Début de la segmentation k-means avec k={k}")
             img_array = np.array(self.current_image)
+            original_shape = img_array.shape
+            self.logger.info(f"Forme originale de l'image: {original_shape}")
 
-            # Utiliser l'image en couleur si possible
+            # Gérer différents types d'images
             if img_array.ndim == 2:
+                # Image en niveaux de gris
+                self.logger.info("Traitement d'une image en niveaux de gris")
                 data = img_array.reshape((-1, 1)).astype(np.float32)
+                num_channels = 1
+            elif img_array.ndim == 3:
+                # Image couleur (RGB ou RGBA)
+                num_channels = img_array.shape[2]
+                self.logger.info(f"Traitement d'une image couleur avec {num_channels} canaux")
+                
+                if num_channels == 4:
+                    # RGBA : convertir en RGB en ignorant le canal alpha
+                    self.logger.info("Conversion RGBA vers RGB pour k-means")
+                    img_array = cv2.cvtColor(img_array, cv2.COLOR_RGBA2RGB)
+                    num_channels = 3
+                
+                # Reshape pour k-means : chaque pixel devient un vecteur de caractéristiques
+                data = img_array.reshape((-1, num_channels)).astype(np.float32)
             else:
-                data = img_array.reshape((-1, 3)).astype(np.float32)
+                error_msg = f"Format d'image non supporté. Dimensions: {img_array.ndim}"
+                self.logger.error(error_msg)
+                messagebox.showerror("Erreur", error_msg)
+                return
+
+            self.logger.info(f"Données préparées pour k-means: shape={data.shape}, type={data.dtype}")
 
             # Critère d'arrêt et exécution de k-means
             criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 10, 1.0)
+            self.logger.info("Exécution de k-means...")
             _, labels, centers = cv2.kmeans(
                 data,
                 K=k,
@@ -2068,20 +2429,37 @@ class MainWindow:
                 flags=cv2.KMEANS_PP_CENTERS,
             )
 
-            centers = np.uint8(centers)
-            segmented = centers[labels.flatten()]
+            self.logger.info(f"K-means terminé. Centers shape: {centers.shape}, Labels shape: {labels.shape}")
 
-            if img_array.ndim == 2:
-                segmented = segmented.reshape(img_array.shape)
+            # Convertir les centres en uint8
+            centers = np.uint8(centers)
+            
+            # Assigner chaque pixel à son centre le plus proche
+            segmented = centers[labels.flatten()]
+            self.logger.info(f"Segmented shape avant reshape: {segmented.shape}")
+
+            # Reshape pour correspondre à la forme originale (sans le canal alpha si présent)
+            if num_channels == 1:
+                # Image en niveaux de gris
+                segmented = segmented.reshape(original_shape[:2])
             else:
-                segmented = segmented.reshape(img_array.shape)
+                # Image couleur : reshape en (hauteur, largeur, nombre_de_canaux)
+                segmented = segmented.reshape((original_shape[0], original_shape[1], num_channels))
+
+            self.logger.info(f"Segmented shape après reshape: {segmented.shape}")
 
             self.current_image = Image.fromarray(segmented)
             self._update_image_display()
             if hasattr(self, 'status_var'):
                 self.status_var.set(f"Segmentation k-means appliquée (k={k})")
+            self.logger.info(f"Segmentation k-means réussie avec k={k}")
+            
         except Exception as e:
-            messagebox.showerror("Erreur", f"Erreur lors de la segmentation k-means: {str(e)}")
+            error_details = traceback.format_exc()
+            error_msg = f"Erreur lors de la segmentation k-means: {str(e)}"
+            self.logger.error(f"Erreur lors de la segmentation k-means:\n{error_details}")
+            self.status_var.set("Erreur lors de la segmentation k-means")
+            messagebox.showerror("Erreur", error_msg)
 
     def _label_connected_components(self):
         """Étiquette les composantes connexes d'une image binaire et les colore."""
